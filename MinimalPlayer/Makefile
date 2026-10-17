@@ -13,7 +13,7 @@ BUILD := build
 SOURCES := source
 INCLUDES := include
 
-ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard
+ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
 CFLAGS := -g -Wall -Wextra -O2 -mword-relocations
 CFLAGS += -ffunction-sections -fdata-sections $(ARCH)
@@ -21,7 +21,7 @@ CFLAGS += -D__3DS__
 
 CXXFLAGS := $(CFLAGS)
 
-LDFLAGS := -specs=3dsx.specs $(ARCH)
+LDFLAGS := -specs=3dsx.specs
 LDFLAGS += -Wl,--gc-sections
 
 LIBS := -lctru -lm
