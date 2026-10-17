@@ -11,13 +11,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check project files
+      - name: Verify project files
         run: |
           test -f MinimalPlayer/Makefile
-          test -f MinimalPlayer/main.c
-          test -f MinimalPlayer/video.c
-          test -f MinimalPlayer/audio.c
-          echo "Project files found."
+          test -f MinimalPlayer/source/main.c
+          test -f MinimalPlayer/source/video.c
+          test -f MinimalPlayer/source/video.h
+          test -f MinimalPlayer/source/audio.c
+          test -f MinimalPlayer/source/audio.h
+          echo "All project files found."
 
       - name: Compile MinimalPlayer
         run: make -C MinimalPlayer
