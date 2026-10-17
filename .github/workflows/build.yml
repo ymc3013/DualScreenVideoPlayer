@@ -11,12 +11,9 @@ jobs:
       image: devkitpro/devkitarm:latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Check devkitPro tools
         run: |
           echo "DEVKITPRO=$DEVKITPRO"
           echo "DEVKITARM=$DEVKITARM"
-          test -x "$DEVKITARM/bin/arm-none-eabi-gcc"
-          arm-none-eabi-gcc --version
+          ls -la /opt/devkitpro/devkitARM/bin/
+          /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc --version
