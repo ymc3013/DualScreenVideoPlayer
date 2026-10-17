@@ -1,5 +1,5 @@
 
-name: Build 3DS CIA
+name: Build 3DS App
 
 on:
   workflow_dispatch:
@@ -11,9 +11,23 @@ jobs:
       image: devkitpro/devkitarm:latest
 
     steps:
-      - name: Check devkitPro tools
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check tools
         run: |
           echo "DEVKITPRO=$DEVKITPRO"
           echo "DEVKITARM=$DEVKITARM"
-          ls -la /opt/devkitpro/devkitARM/bin/
-          /opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc --version
+          ls "$DEVKITPRO"
+          test -x "$DEVKITARM/bin/arm-none-eabi-gcc"
+
+      - name: Build 3DSX
+        run: make
+
+      - name: Upload 3DSX
+        uses: actions/upload-artifact@v4
+        with:
+          name: DualScreenVideoPlayer-3DSX
+          path: |
+            DualScreenVideoPlayer.3dsx
+            DualScreenVideoPlayer.smdh
