@@ -22,6 +22,8 @@ jobs:
       - name: Patch video player for autoplay
         shell: bash
         run: |
+          cd "$GITHUB_WORKSPACE"
+
           python3 <<'PY'
           from pathlib import Path
           import re
@@ -36,9 +38,7 @@ jobs:
               if not path.is_file():
                   raise SystemExit(f"ERROR: Missing file: {path}")
 
-          # Add the public function declaration.
           h = header.read_text()
-
           prototype = (
               "bool Vid_play_file("
               "const char* directory, const char* filename);"
@@ -46,29 +46,17 @@ jobs:
 
           if prototype not in h:
               anchor = "void Vid_init(bool draw);"
-
               if anchor not in h:
-                  raise SystemExit(
-                      "ERROR: Cannot find Vid_init declaration"
-                  )
-
-              h = h.replace(
-                  anchor,
-                  anchor + "\n" + prototype,
-                  1
-              )
+                  raise SystemExit("Cannot find Vid_init declaration")
+              h = h.replace(anchor, anchor + "\n" + prototype, 1)
               header.write_text(h)
 
-          # Add a function that queues a video for playback.
           c = source.read_text()
 
           if "bool Vid_play_file(" not in c:
               anchor = "void Vid_exit(bool draw)\n{"
-
               if anchor not in c:
-                  raise SystemExit(
-                      "ERROR: Cannot find Vid_exit function"
-                  )
+                  raise SystemExit("Cannot find Vid_exit function")
 
               function = r'''
           bool Vid_play_file(const char* directory, const char* filename)
@@ -108,36 +96,26 @@ jobs:
 
               c = c.replace(anchor, function + anchor, 1)
 
-          # Keep HOME-menu handling, but disable player controls.
           marker = "// AUTO-PLAY: ignore controls"
 
           if marker not in c:
               start = c.find("void Vid_hid(const Hid_info* key)")
-
               if start < 0:
-                  raise SystemExit(
-                      "ERROR: Cannot find Vid_hid function"
-                  )
+                  raise SystemExit("Cannot find Vid_hid function")
 
               home_line = c.find(
                   "vid_player.must_resume_after_home_menu = false;",
                   start
               )
-
               if home_line < 0:
-                  raise SystemExit(
-                      "ERROR: Cannot find HOME-menu handling"
-                  )
+                  raise SystemExit("Cannot find HOME-menu handling")
 
               control_pos = c.find(
                   "if(Util_err_query_show_flag())",
                   home_line
               )
-
               if control_pos < 0:
-                  raise SystemExit(
-                      "ERROR: Cannot locate control-handling section"
-                  )
+                  raise SystemExit("Cannot find control-handling section")
 
               line_start = c.rfind("\n", 0, control_pos) + 1
               indent = c[line_start:control_pos]
@@ -146,12 +124,10 @@ jobs:
                   indent + marker + "\n"
                   + indent + "return;\n"
               )
-
               c = c[:line_start] + insertion + c[line_start:]
 
           source.write_text(c)
 
-          # Start the player directly instead of showing the main menu.
           main.write_text("""#include <stdbool.h>
           #include "3ds.h"
           #include "system/menu.h"
@@ -180,7 +156,6 @@ jobs:
           }
           """)
 
-          # Update application metadata.
           mk = makefile.read_text()
 
           mk, count = re.subn(
@@ -189,41 +164,45 @@ jobs:
               mk,
               count=1
           )
-
           if count != 1:
-              raise SystemExit("ERROR: Cannot update TARGET in Makefile")
+              raise SystemExit("Cannot update TARGET in Makefile")
 
           for key, value in (
               ("APP_TITLE", "DualScreenVideoPlayer"),
               ("APP_DESCRIPTION", "Automatic video player"),
               ("APP_AUTHOR", "ymc3013"),
           ):
-              pattern = rf"(?m)^{key}\s*:=.*$"
               mk, count = re.subn(
-                  pattern,
+                  rf"(?m)^{key}\s*:=.*$",
                   f"{key} := {value}",
                   mk,
                   count=1
               )
-
               if count != 1:
-                  raise SystemExit(
-                      f"ERROR: Cannot update {key} in Makefile"
-                  )
+                  raise SystemExit(f"Cannot update {key} in Makefile")
 
           makefile.write_text(mk)
-
           print("Autoplay patch applied successfully.")
           PY
 
       - name: Build 3DSX
-        run: make -C VideoPlayerEngine 3dsx
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE/VideoPlayerEngine"
+          make 3dsx
 
       - name: Commit source changes
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cd "$GITHUB_WORKSPACE"
+
+          git rev-parse --show-toplevel
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add VideoPlayerEngine
+
           if ! git diff --cached --quiet; then
             git commit -m "Add automatic video playback mode"
             git push
