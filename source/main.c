@@ -1,26 +1,28 @@
 
 #include <3ds.h>
 #include <stdio.h>
-#include <string.h>
 
 int main(void)
 {
     gfxInitDefault();
-    consoleInit(GFX_TOP, NULL);
-    consoleInit(GFX_BOTTOM, NULL);
 
-    consoleSelect(GFX_TOP);
-    printf("\x1b[14;12HÉCRAN DU HAUT");
+    PrintConsole topConsole;
+    PrintConsole bottomConsole;
 
-    consoleSelect(GFX_BOTTOM);
-    printf("\x1b[14;9HÉCRAN DU BAS");
+    consoleInit(GFX_TOP, &topConsole);
+    consoleInit(GFX_BOTTOM, &bottomConsole);
+
+    consoleSelect(&topConsole);
+    printf("\x1b[14;12H ECRAN DU HAUT");
+
+    consoleSelect(&bottomConsole);
+    printf("\x1b[14;9H ECRAN DU BAS");
 
     while (aptMainLoop())
     {
         hidScanInput();
 
-        u32 kDown = hidKeysDown();
-        if (kDown & KEY_START)
+        if (hidKeysDown() & KEY_START)
             break;
 
         gfxFlushBuffers();
