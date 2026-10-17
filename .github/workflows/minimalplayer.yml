@@ -1,6 +1,8 @@
 name: MinimalPlayer Build
 
-on: [push, workflow_dispatch]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,14 +21,24 @@ jobs:
           test -f MinimalPlayer/source/video.h
           test -f MinimalPlayer/source/audio.c
           test -f MinimalPlayer/source/audio.h
-          echo "All project files found."
+          echo "Tous les fichiers source sont presents."
 
       - name: Compile MinimalPlayer
         run: make -C MinimalPlayer
+
+      - name: Find generated files
+        if: always()
+        run: |
+          echo "Recherche des fichiers compiles..."
+          find MinimalPlayer -type f \( \
+            -name "*.3dsx" -o \
+            -name "*.elf" -o \
+            -name "*.smdh" \
+          \) -print
 
       - name: Upload 3DSX
         uses: actions/upload-artifact@v4
         with:
           name: MinimalPlayer-3DSX
-          path: MinimalPlayer/MinimalPlayer.3dsx
+          path: MinimalPlayer/**/*.3dsx
           if-no-files-found: error
