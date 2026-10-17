@@ -9,7 +9,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkitarm:latest
 
     steps:
       - name: Checkout repository
@@ -32,18 +34,16 @@ jobs:
 
           for p in (source, header, main, makefile):
               if not p.is_file():
-                  raise SystemExit(f"Missing required file: {p}")
+                  raise SystemExit(f"Missing file: {p}")
 
           h = header.read_text()
-          if "bool Vid_play_file(" not in h:
-              anchor = "void Vid_exit(bool draw);"
+          prototype = "bool Vid_play_file(const char* directory, const char* filename);"
+
+          if prototype not in h:
+              anchor = "void Vid_init(bool draw);"
               if anchor not in h:
-                  raise SystemExit("Cannot locate header insertion point")
-              h = h.replace(
-                  anchor,
-                  "bool Vid_play_file(const char* directory, const char* filename);\n\n" + anchor,
-                  1
-              )
+                  raise SystemExit("Cannot find Vid_init declaration")
+              h = h.replace(anchor, anchor + "\n" + prototype, 1)
               header.write_text(h)
 
           c = source.read_text()
@@ -51,13 +51,12 @@ jobs:
           if "bool Vid_play_file(" not in c:
               anchor = "void Vid_exit(bool draw)\n{"
               if anchor not in c:
-                  raise SystemExit("Cannot locate player insertion point")
+                  raise SystemExit("Cannot find Vid_exit function")
 
-              function = r'''
+              function = """
           bool Vid_play_file(const char* directory, const char* filename)
           {
-              if (!vid_player.inited || !directory || !filename ||
-                  !directory[0] || !filename[0])
+              if (!vid_player.inited || !directory || !filename)
                   return false;
 
               Vid_file* file_data = calloc(1, sizeof(Vid_file));
@@ -68,7 +67,6 @@ jobs:
                        "%s", directory);
               snprintf(file_data->name, sizeof(file_data->name),
                        "%s", filename);
-              file_data->index = 0;
 
               uint32_t result = Util_queue_add(
                   &vid_player.decode_thread_command_queue,
@@ -84,63 +82,43 @@ jobs:
                   return false;
               }
 
-              Vid_enter_full_screen(1);
               return true;
           }
 
-          '''
+          """
+
               c = c.replace(anchor, function + anchor, 1)
 
-                   control_anchor = (
-              "\t\tvid_player.is_waiting_home_menu = false;\n"
-              "\t\tvid_player.must_resume_after_home_menu = false;\n"
-              "\t}\n"
-              "\tif(Util_err_query_show_flag())"
-          )
+          marker = "// AUTO-PLAY: ignore controls"
 
-          if "// AUTO-PLAY: ignore in-app controls" not in c:
-              if control_anchor not in c:
-                  raise SystemExit("Cannot locate input-control insertion point")
-              c = c.replace(
-                  control_anchor,
+          if marker not in c:
+              start = c.find("void Vid_hid(const Hid_info* key)")
+              if start < 0:
+                  raise SystemExit("Cannot find Vid_hid function")
+
+              anchor = (
                   "\t\tvid_player.is_waiting_home_menu = false;\n"
                   "\t\tvid_player.must_resume_after_home_menu = false;\n"
                   "\t}\n"
-                  "\t// AUTO-PLAY: ignore in-app controls\n"
-                  "\treturn;\n"
-                  "\tif(Util_err_query_show_flag())",
-                  1
+                  "\tif(Util_err_query_show_flag())"
               )
 
-          end_block = (
-              "\t\t\t\t\telse\n"
-              "\t\t\t\t\t{\n"
-              "\t\t\t\t\t\tfor(uint32_t i = 0; i < EYE_MAX; i++)\n"
-              "\t\t\t\t\t\t\tVid_fit_to_screen(NON_FULL_SCREEN_WIDTH, NON_FULL_SCREEN_HEIGHT, i);\n"
-              "\t\t\t\t\t\tVid_exit_full_screen();\n"
-              "\t\t\t\t\t\t//Reset key state on scene change.\n"
-              "\t\t\t\t\t\tUtil_hid_reset_key_state(HID_KEY_BIT_ALL);\n"
-              "\t\t\t\t\t\tvid_player.state = PLAYER_STATE_IDLE;\n"
-              "\t\t\t\t\t}"
-          )
+              pos = c.find(anchor, start)
+              if pos < 0:
+                  raise SystemExit("Cannot find input-control section")
 
-          kiosk_end = (
-              "\t\t\t\t\telse\n"
-              "\t\t\t\t\t{\n"
-              "\t\t\t\t\t\t// Keep the screen free of controls after playback.\n"
-              "\t\t\t\t\t\tUtil_hid_reset_key_state(HID_KEY_BIT_ALL);\n"
-              "\t\t\t\t\t\tvid_player.state = PLAYER_STATE_IDLE;\n"
-              "\t\t\t\t\t}"
-          )
+              replacement = anchor.replace(
+                  "\tif(Util_err_query_show_flag())",
+                  "\t" + marker + "\n"
+                  "\treturn;\n"
+                  "\tif(Util_err_query_show_flag())"
+              )
 
-          if kiosk_end not in c:
-              if end_block not in c:
-                  raise SystemExit("Cannot locate playback-end block")
-              c = c.replace(end_block, kiosk_end, 1)
+              c = c[:pos] + c[pos:].replace(anchor, replacement, 1)
 
           source.write_text(c)
 
-          main.write_text('''#include <stdbool.h>
+          main.write_text("""#include <stdbool.h>
           #include "3ds.h"
           #include "system/menu.h"
           #include "video_player.h"
@@ -148,7 +126,6 @@ jobs:
           int main(void)
           {
               Menu_init();
-
               Vid_init(false);
 
               if (!Vid_play_file("sdmc:/Movies/", "test.avi"))
@@ -165,39 +142,40 @@ jobs:
               Menu_exit();
               return 0;
           }
-          ''')
+          """)
 
           mk = makefile.read_text()
-          mk, n = re.subn(
-              r'(?m)^TARGET\s*:=.*$',
-              'TARGET := DualScreenVideoPlayer',
+
+          mk, count = re.subn(
+              r"(?m)^TARGET\s*:=.*$",
+              "TARGET := DualScreenVideoPlayer",
               mk,
               count=1
           )
-          if n != 1:
-              raise SystemExit("Cannot update Makefile target")
+          if count != 1:
+              raise SystemExit("Cannot update application target")
 
           mk = re.sub(
-              r'(?m)^APP_TITLE\s*:=.*$',
-              'APP_TITLE := DualScreenVideoPlayer',
+              r"(?m)^APP_TITLE\s*:=.*$",
+              "APP_TITLE := DualScreenVideoPlayer",
               mk,
               count=1
           )
           mk = re.sub(
-              r'(?m)^APP_DESCRIPTION\s*:=.*$',
-              'APP_DESCRIPTION := Automatic video player',
+              r"(?m)^APP_DESCRIPTION\s*:=.*$",
+              "APP_DESCRIPTION := Automatic video player",
               mk,
               count=1
           )
           mk = re.sub(
-              r'(?m)^APP_AUTHOR\s*:=.*$',
-              'APP_AUTHOR := ymc3013',
+              r"(?m)^APP_AUTHOR\s*:=.*$",
+              "APP_AUTHOR := ymc3013",
               mk,
               count=1
           )
+
           makefile.write_text(mk)
-
-          print("Auto-play source changes prepared.")
+          print("Auto-play patch applied successfully.")
           PY
 
       - name: Commit source changes
@@ -208,17 +186,10 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "Add automatic video playback mode"
             git push
-          else
-            echo "No source changes to commit."
           fi
 
       - name: Build 3DSX
-        run: |
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:/work" \
-            -w /work \
-            devkitpro/devkitarm:latest \
-            make -C VideoPlayerEngine 3dsx
+        run: make -C VideoPlayerEngine 3dsx
 
       - name: Upload application
         uses: actions/upload-artifact@v4
