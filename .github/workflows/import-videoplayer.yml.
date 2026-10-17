@@ -1,0 +1,42 @@
+
+name: Import VideoPlayer Engine
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout DualScreenVideoPlayer
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Download VideoPlayer source
+        uses: actions/checkout@v4
+        with:
+          repository: Core-2-Extreme/Video_player_for_3DS
+          path: upstream
+          persist-credentials: false
+
+      - name: Copy source files
+        run: |
+          mkdir -p VideoPlayerEngine
+          rsync -a --exclude='.git' upstream/ VideoPlayerEngine/
+
+      - name: Save imported files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VideoPlayerEngine
+          if git diff --cached --quiet; then
+            echo "No new changes to commit."
+            exit 0
+          fi
+          git commit -m "Import VideoPlayer engine source"
+          git push
