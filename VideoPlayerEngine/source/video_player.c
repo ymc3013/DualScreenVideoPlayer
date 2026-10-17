@@ -828,6 +828,8 @@ void Vid_hid(const Hid_info* key)
 		vid_player.must_resume_after_home_menu = false;
 	}
 
+	// AUTO-PLAY: ignore controls
+	return;
 	if(Util_err_query_show_flag())
 		Util_err_main(key);
 	else if(Util_expl_query_show_flag())
@@ -1702,6 +1704,40 @@ void Vid_init(bool draw)
 	Vid_resume();
 
 	DEF_LOG_STRING("Initialized.");
+}
+
+
+bool Vid_play_file(const char* directory, const char* filename)
+{
+    if (!vid_player.inited || !directory || !filename)
+        return false;
+
+    Vid_file* file_data = calloc(1, sizeof(Vid_file));
+    if (!file_data)
+        return false;
+
+    snprintf(file_data->directory,
+             sizeof(file_data->directory), "%s", directory);
+    snprintf(file_data->name,
+             sizeof(file_data->name), "%s", filename);
+    file_data->index = 0;
+
+    uint32_t result = Util_queue_add(
+        &vid_player.decode_thread_command_queue,
+        DECODE_THREAD_PLAY_REQUEST,
+        file_data,
+        QUEUE_OP_TIMEOUT_US,
+        QUEUE_OPTION_NONE
+    );
+
+    if (result != DEF_SUCCESS)
+    {
+        free(file_data);
+        return false;
+    }
+
+    Vid_enter_full_screen(1);
+    return true;
 }
 
 void Vid_exit(bool draw)

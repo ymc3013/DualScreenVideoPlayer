@@ -28,6 +28,7 @@ void Vid_suspend(void);
 uint32_t Vid_load_msg(const char* lang);
 
 void Vid_init(bool draw);
+bool Vid_play_file(const char* directory, const char* filename);
 
 void Vid_exit(bool draw);
 

@@ -1,37 +1,26 @@
-//Includes.
 #include <stdbool.h>
-#include <stdint.h>
-
 #include "3ds.h"
-
 #include "system/menu.h"
+#include "video_player.h"
 
-//Defines.
-//N/A.
-
-//Typedefs.
-//N/A.
-
-//Prototypes.
-//N/A.
-
-//Variables.
-//N/A.
-
-//Code.
 int main(void)
 {
-	Menu_init();
+    Menu_init();
+    Vid_init(false);
 
-	// Main loop
-	while (aptMainLoop())
-	{
-		if (Menu_query_must_exit_flag())
-			break;
+    if (!Vid_play_file("sdmc:/Movies/", "test.avi"))
+    {
+        Vid_exit(false);
+        Menu_exit();
+        return 1;
+    }
 
-		Menu_main();
-	}
+    while (aptMainLoop())
+    {
+        Menu_main();
+    }
 
-	Menu_exit();
-	return 0;
+    Vid_exit(false);
+    Menu_exit();
+    return 0;
 }

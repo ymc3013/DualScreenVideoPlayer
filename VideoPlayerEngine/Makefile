@@ -31,7 +31,7 @@ include $(DEVKITARM)/3ds_rules
 #     - icon.png
 #     - <libctru folder>/default_icon.png
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
+TARGET := DualScreenVideoPlayer
 BUILD		:=	build
 SOURCES		:=	source source/system source/system/util source/system/draw
 DATA		:=	data
@@ -41,9 +41,9 @@ ROMFS		:=	romfs
 GFXBUILD	:=	$(ROMFS)/gfx
 #---------------------------------------------------------------------------------
 APP_VER				:= 1152
-APP_TITLE			:= Video player for 3DS
-APP_DESCRIPTION		:= Video player for 3DS v1.8.0
-APP_AUTHOR			:= Core_2_Extreme
+APP_TITLE := DualScreenVideoPlayer
+APP_DESCRIPTION := Automatic video player
+APP_AUTHOR := ymc3013
 PRODUCT_CODE		:= CTR-Vid
 UNIQUE_ID			:= 0xEC600
 
