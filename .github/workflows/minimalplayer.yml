@@ -1,4 +1,4 @@
-name: MinimalPlayer Build
+name: DualScreenVideoPlayer Build
 
 on:
   push:
@@ -13,36 +13,79 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check source files
+      - name: Install Nintendo 3DS development tools
         run: |
-          test -f MinimalPlayer/Makefile
-          test -f MinimalPlayer/source/main.c
-          test -f MinimalPlayer/source/video.c
-          test -f MinimalPlayer/source/video.h
-          test -f MinimalPlayer/source/audio.c
-          test -f MinimalPlayer/source/audio.h
-          echo "Source files OK"
+          dkp-pacman -Sy --noconfirm
+          dkp-pacman -S --noconfirm 3ds-dev
+          echo "DEVKITPRO=$DEVKITPRO"
+          echo "DEVKITARM=$DEVKITARM"
 
-      - name: Compile MinimalPlayer
+      - name: Generate project files
+        shell: bash
         run: |
-          make -C MinimalPlayer
-          echo "Compilation finished"
+          set -eu
 
-      - name: Locate build outputs
-        id: outputs
-        if: always()
-        run: |
-          find . -type f \( -name "*.3dsx" -o -name "*.elf" -o -name "*.smdh" \) -print
-          if find . -type f -name "*.3dsx" -print -quit | grep -q .; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
+          # Recuperer les sources deja presentes dans le depot.
+          if [ -d MinimalPlayer/source ]; then
+            cp MinimalPlayer/source/*.c .
+            cp MinimalPlayer/source/*.h .
           fi
 
-      - name: Upload 3DSX
-        if: steps.outputs.outputs == 'true'
+          # Verifier que toutes les sources existent.
+          for f in main.c video.c video.h audio.c audio.h; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Fichier source manquant : $f"
+              exit 1
+            fi
+          done
+
+          # Generer le Makefile a la racine.
+          cat > Makefile <<'MAKEFILE'
+          .SUFFIXES:
+          .DEFAULT_GOAL := all
+
+          TARGET := DualScreenVideoPlayer
+          BUILD := build
+          SOURCES := .
+          INCLUDES := .
+
+          ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
+
+          CFLAGS := -g -Wall -Wextra -O2 -mword-relocations
+          CFLAGS += -ffunction-sections -fdata-sections $(ARCH)
+          CFLAGS += -D__3DS__
+
+          CXXFLAGS := $(CFLAGS)
+          ASFLAGS := $(ARCH)
+
+          LDFLAGS := -specs=3dsx.specs -g $(ARCH)
+          LDFLAGS += -Wl,--gc-sections
+
+          LIBS := -lctru -lm
+
+          APP_TITLE := DualScreenVideoPlayer
+          APP_DESCRIPTION := Dual screen video player
+          APP_AUTHOR := ymc3013
+
+          include $(DEVKITARM)/3ds_rules
+          MAKEFILE
+
+          echo "Fichiers du projet :"
+          ls -la
+          echo "Makefile genere."
+
+      - name: Compile Nintendo 3DS application
+        run: make
+
+      - name: Locate compiled application
+        if: always()
+        run: |
+          find . -type f \( -name "*.3dsx" -o -name "*.elf" \) -print
+
+      - name: Upload application
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: MinimalPlayer-3DSX
-          path: '**/*.3dsx'
+          name: DualScreenVideoPlayer
+          path: DualScreenVideoPlayer.3dsx
           if-no-files-found: error
