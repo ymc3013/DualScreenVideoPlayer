@@ -1,0 +1,229 @@
+
+name: Build AutoPlay Video Player
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Patch video player for autoplay
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          base = Path("VideoPlayerEngine")
+          source = base / "source/video_player.c"
+          header = base / "include/video_player.h"
+          main = base / "source/main.c"
+          makefile = base / "Makefile"
+
+          for p in (source, header, main, makefile):
+              if not p.is_file():
+                  raise SystemExit(f"Missing required file: {p}")
+
+          h = header.read_text()
+          if "bool Vid_play_file(" not in h:
+              anchor = "void Vid_exit(bool draw);"
+              if anchor not in h:
+                  raise SystemExit("Cannot locate header insertion point")
+              h = h.replace(
+                  anchor,
+                  "bool Vid_play_file(const char* directory, const char* filename);\n\n" + anchor,
+                  1
+              )
+              header.write_text(h)
+
+          c = source.read_text()
+
+          if "bool Vid_play_file(" not in c:
+              anchor = "void Vid_exit(bool draw)\n{"
+              if anchor not in c:
+                  raise SystemExit("Cannot locate player insertion point")
+
+              function = r'''
+          bool Vid_play_file(const char* directory, const char* filename)
+          {
+              if (!vid_player.inited || !directory || !filename ||
+                  !directory[0] || !filename[0])
+                  return false;
+
+              Vid_file* file_data = calloc(1, sizeof(Vid_file));
+              if (!file_data)
+                  return false;
+
+              snprintf(file_data->directory, sizeof(file_data->directory),
+                       "%s", directory);
+              snprintf(file_data->name, sizeof(file_data->name),
+                       "%s", filename);
+              file_data->index = 0;
+
+              uint32_t result = Util_queue_add(
+                  &vid_player.decode_thread_command_queue,
+                  DECODE_THREAD_PLAY_REQUEST,
+                  file_data,
+                  QUEUE_OP_TIMEOUT_US,
+                  QUEUE_OPTION_NONE
+              );
+
+              if (result != DEF_SUCCESS)
+              {
+                  free(file_data);
+                  return false;
+              }
+
+              Vid_enter_full_screen(1);
+              return true;
+          }
+
+          '''
+              c = c.replace(anchor, function + anchor, 1)
+
+                   control_anchor = (
+              "\t\tvid_player.is_waiting_home_menu = false;\n"
+              "\t\tvid_player.must_resume_after_home_menu = false;\n"
+              "\t}\n"
+              "\tif(Util_err_query_show_flag())"
+          )
+
+          if "// AUTO-PLAY: ignore in-app controls" not in c:
+              if control_anchor not in c:
+                  raise SystemExit("Cannot locate input-control insertion point")
+              c = c.replace(
+                  control_anchor,
+                  "\t\tvid_player.is_waiting_home_menu = false;\n"
+                  "\t\tvid_player.must_resume_after_home_menu = false;\n"
+                  "\t}\n"
+                  "\t// AUTO-PLAY: ignore in-app controls\n"
+                  "\treturn;\n"
+                  "\tif(Util_err_query_show_flag())",
+                  1
+              )
+
+          end_block = (
+              "\t\t\t\t\telse\n"
+              "\t\t\t\t\t{\n"
+              "\t\t\t\t\t\tfor(uint32_t i = 0; i < EYE_MAX; i++)\n"
+              "\t\t\t\t\t\t\tVid_fit_to_screen(NON_FULL_SCREEN_WIDTH, NON_FULL_SCREEN_HEIGHT, i);\n"
+              "\t\t\t\t\t\tVid_exit_full_screen();\n"
+              "\t\t\t\t\t\t//Reset key state on scene change.\n"
+              "\t\t\t\t\t\tUtil_hid_reset_key_state(HID_KEY_BIT_ALL);\n"
+              "\t\t\t\t\t\tvid_player.state = PLAYER_STATE_IDLE;\n"
+              "\t\t\t\t\t}"
+          )
+
+          kiosk_end = (
+              "\t\t\t\t\telse\n"
+              "\t\t\t\t\t{\n"
+              "\t\t\t\t\t\t// Keep the screen free of controls after playback.\n"
+              "\t\t\t\t\t\tUtil_hid_reset_key_state(HID_KEY_BIT_ALL);\n"
+              "\t\t\t\t\t\tvid_player.state = PLAYER_STATE_IDLE;\n"
+              "\t\t\t\t\t}"
+          )
+
+          if kiosk_end not in c:
+              if end_block not in c:
+                  raise SystemExit("Cannot locate playback-end block")
+              c = c.replace(end_block, kiosk_end, 1)
+
+          source.write_text(c)
+
+          main.write_text('''#include <stdbool.h>
+          #include "3ds.h"
+          #include "system/menu.h"
+          #include "video_player.h"
+
+          int main(void)
+          {
+              Menu_init();
+
+              Vid_init(false);
+
+              if (!Vid_play_file("sdmc:/Movies/", "test.avi"))
+                  Menu_set_must_exit_flag(true);
+
+              while (aptMainLoop())
+              {
+                  if (Menu_query_must_exit_flag())
+                      break;
+
+                  Menu_main();
+              }
+
+              Menu_exit();
+              return 0;
+          }
+          ''')
+
+          mk = makefile.read_text()
+          mk, n = re.subn(
+              r'(?m)^TARGET\s*:=.*$',
+              'TARGET := DualScreenVideoPlayer',
+              mk,
+              count=1
+          )
+          if n != 1:
+              raise SystemExit("Cannot update Makefile target")
+
+          mk = re.sub(
+              r'(?m)^APP_TITLE\s*:=.*$',
+              'APP_TITLE := DualScreenVideoPlayer',
+              mk,
+              count=1
+          )
+          mk = re.sub(
+              r'(?m)^APP_DESCRIPTION\s*:=.*$',
+              'APP_DESCRIPTION := Automatic video player',
+              mk,
+              count=1
+          )
+          mk = re.sub(
+              r'(?m)^APP_AUTHOR\s*:=.*$',
+              'APP_AUTHOR := ymc3013',
+              mk,
+              count=1
+          )
+          makefile.write_text(mk)
+
+          print("Auto-play source changes prepared.")
+          PY
+
+      - name: Commit source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VideoPlayerEngine
+          if ! git diff --cached --quiet; then
+            git commit -m "Add automatic video playback mode"
+            git push
+          else
+            echo "No source changes to commit."
+          fi
+
+      - name: Build 3DSX
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -w /work \
+            devkitpro/devkitarm:latest \
+            make -C VideoPlayerEngine 3dsx
+
+      - name: Upload application
+        uses: actions/upload-artifact@v4
+        with:
+          name: DualScreenVideoPlayer
+          path: |
+            VideoPlayerEngine/DualScreenVideoPlayer.3dsx
+            VideoPlayerEngine/DualScreenVideoPlayer.smdh
