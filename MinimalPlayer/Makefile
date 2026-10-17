@@ -1,12 +1,10 @@
-.DEFAULT_GOAL := all
+.SUFFIXES:
 
 ifeq ($(strip $(DEVKITPRO)),)
 $(error DEVKITPRO is not set)
 endif
 
-ifeq ($(strip $(DEVKITARM)),)
-$(error DEVKITARM is not set)
-endif
+include $(DEVKITPRO)/libctru/default_config
 
 TARGET := MinimalPlayer
 BUILD := build
@@ -21,7 +19,9 @@ CFLAGS += -D__3DS__
 
 CXXFLAGS := $(CFLAGS)
 
-LDFLAGS := -specs=3dsx.specs
+ASFLAGS := $(ARCH)
+
+LDFLAGS := -specs=3dsx.specs $(ARCH)
 LDFLAGS += -Wl,--gc-sections
 
 LIBS := -lctru -lm
@@ -31,6 +31,3 @@ APP_DESCRIPTION := Minimal video player test
 APP_AUTHOR := ymc3013
 
 include $(DEVKITARM)/3ds_rules
-
-.PHONY: all
-all: $(BUILD)/$(TARGET).3dsx
