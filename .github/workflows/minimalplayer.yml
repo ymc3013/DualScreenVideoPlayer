@@ -13,77 +13,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Nintendo 3DS development tools
+      - name: Install development tools
         run: |
           dkp-pacman -Sy --noconfirm
-          dkp-pacman -S --noconfirm 3ds-dev
-          echo "DEVKITPRO=$DEVKITPRO"
-          echo "DEVKITARM=$DEVKITARM"
+          dkp-pacman -S --needed --noconfirm 3ds-dev
 
-      - name: Generate project files
-        shell: bash
+      - name: Prepare source files
         run: |
           set -eu
 
-          # Recuperer les sources deja presentes dans le depot.
-          if [ -d MinimalPlayer/source ]; then
-            cp MinimalPlayer/source/*.c .
-            cp MinimalPlayer/source/*.h .
-          fi
+          test -f MinimalPlayer/source/main.c
+          test -f MinimalPlayer/source/video.c
+          test -f MinimalPlayer/source/video.h
+          test -f MinimalPlayer/source/audio.c
+          test -f MinimalPlayer/source/audio.h
+          test -f Makefile
 
-          # Verifier que toutes les sources existent.
-          for f in main.c video.c video.h audio.c audio.h; do
-            if [ ! -f "$f" ]; then
-              echo "::error::Fichier source manquant : $f"
-              exit 1
-            fi
-          done
+          cp MinimalPlayer/source/*.c .
+          cp MinimalPlayer/source/*.h .
 
-          # Generer le Makefile a la racine.
-          cat > Makefile <<'MAKEFILE'
-          .SUFFIXES:
-          .DEFAULT_GOAL := all
+          echo "Sources preparees :"
+          ls -l main.c video.c video.h audio.c audio.h
 
-          TARGET := DualScreenVideoPlayer
-          BUILD := build
-          SOURCES := .
-          INCLUDES := .
-
-          ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
-
-          CFLAGS := -g -Wall -Wextra -O2 -mword-relocations
-          CFLAGS += -ffunction-sections -fdata-sections $(ARCH)
-          CFLAGS += -D__3DS__
-
-          CXXFLAGS := $(CFLAGS)
-          ASFLAGS := $(ARCH)
-
-          LDFLAGS := -specs=3dsx.specs -g $(ARCH)
-          LDFLAGS += -Wl,--gc-sections
-
-          LIBS := -lctru -lm
-
-          APP_TITLE := DualScreenVideoPlayer
-          APP_DESCRIPTION := Dual screen video player
-          APP_AUTHOR := ymc3013
-
-          include $(DEVKITARM)/3ds_rules
-          MAKEFILE
-
-          echo "Fichiers du projet :"
-          ls -la
-          echo "Makefile genere."
-
-      - name: Compile Nintendo 3DS application
-        run: make
-
-      - name: Locate compiled application
-        if: always()
+      - name: Compile application
         run: |
-          find . -type f \( -name "*.3dsx" -o -name "*.elf" \) -print
+          set -eu
+          make clean
+          make all
 
-      - name: Upload application
-        if: success()
+      - name: Verify output
+        run: |
+          test -s DualScreenVideoPlayer.3dsx
+          ls -lh DualScreenVideoPlayer.3dsx
+
+      - name: Upload 3DSX
         uses: actions/upload-artifact@v4
         with:
           name: DualScreenVideoPlayer
