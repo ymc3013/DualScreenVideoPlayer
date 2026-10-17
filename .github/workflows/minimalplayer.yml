@@ -1,6 +1,6 @@
 name: Build MinimalPlayer
 
-on: workflow_dispatch: push: paths: - "MinimalPlayer/**" - ".github/workflows/minimalplayer.yml"
+on: [push, workflow_dispatch]
 
 jobs: build: runs-on: ubuntu-latest container: devkitpro/devkitarm:latest
 
