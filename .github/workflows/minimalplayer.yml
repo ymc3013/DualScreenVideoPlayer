@@ -15,37 +15,34 @@ jobs:
 
       - name: Check source files
         run: |
-          echo "Checking project files..."
-          ls -la MinimalPlayer
-          ls -la MinimalPlayer/source
           test -f MinimalPlayer/Makefile
           test -f MinimalPlayer/source/main.c
           test -f MinimalPlayer/source/video.c
           test -f MinimalPlayer/source/video.h
           test -f MinimalPlayer/source/audio.c
           test -f MinimalPlayer/source/audio.h
+          echo "Source files OK"
 
       - name: Compile MinimalPlayer
-        run: make -C MinimalPlayer
+        run: |
+          make -C MinimalPlayer
+          echo "Compilation finished"
 
-      - name: Search build outputs
+      - name: Locate build outputs
+        id: outputs
         if: always()
         run: |
-          echo "Searching for compiled files..."
-          find . -type f \( \
-            -name "*.3dsx" -o \
-            -name "*.elf" -o \
-            -name "*.smdh" \
-          \) -print
-          echo "Build directory:"
-          ls -la MinimalPlayer/build || true
+          find . -type f \( -name "*.3dsx" -o -name "*.elf" -o -name "*.smdh" \) -print
+          if find . -type f -name "*.3dsx" -print -quit | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload 3DSX
-        if: success()
+        if: steps.outputs.outputs == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: MinimalPlayer-3DSX
-          path: |
-            MinimalPlayer/**/*.3dsx
-            MinimalPlayer/*.3dsx
+          path: '**/*.3dsx'
           if-no-files-found: error
