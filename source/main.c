@@ -1,0 +1,33 @@
+
+#include <3ds.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    gfxInitDefault();
+    consoleInit(GFX_TOP, NULL);
+    consoleInit(GFX_BOTTOM, NULL);
+
+    consoleSelect(GFX_TOP);
+    printf("\x1b[14;12HÉCRAN DU HAUT");
+
+    consoleSelect(GFX_BOTTOM);
+    printf("\x1b[14;9HÉCRAN DU BAS");
+
+    while (aptMainLoop())
+    {
+        hidScanInput();
+
+        u32 kDown = hidKeysDown();
+        if (kDown & KEY_START)
+            break;
+
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
+    }
+
+    gfxExit();
+    return 0;
+}
