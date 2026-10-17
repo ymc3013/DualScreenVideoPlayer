@@ -1,9 +1,11 @@
+.DEFAULT_GOAL := all
+
 ifeq ($(strip $(DEVKITPRO)),)
-$(error DEVKITPRO is not set. Configure devkitPro first)
+$(error DEVKITPRO is not set)
 endif
 
 ifeq ($(strip $(DEVKITARM)),)
-$(error DEVKITARM is not set. Configure devkitARM first)
+$(error DEVKITARM is not set)
 endif
 
 TARGET := MinimalPlayer
@@ -27,3 +29,6 @@ APP_DESCRIPTION := Minimal video player test
 APP_AUTHOR := ymc3013
 
 include $(DEVKITARM)/3ds_rules
+
+.PHONY: all
+all: $(BUILD)/$(TARGET).3dsx
