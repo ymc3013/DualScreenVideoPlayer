@@ -5,7 +5,7 @@ endif
 TARGET := MinimalPlayer
 BUILD := build
 
-SOURCES := .
+SOURCES := source
 INCLUDES := .
 
 ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
