@@ -6,21 +6,17 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkitarm:latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install devkitPro tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
-          wget https://apt.devkitpro.org/install-devkitpro-pacman
-          chmod +x install-devkitpro-pacman
-          sudo ./install-devkitpro-pacman
-          sudo dkp-pacman -S --noconfirm 3ds-dev
-
-      - name: Check toolchain
+      - name: Check devkitPro tools
         run: |
           echo "DEVKITPRO=$DEVKITPRO"
           echo "DEVKITARM=$DEVKITARM"
+          test -x "$DEVKITARM/bin/arm-none-eabi-gcc"
+          arm-none-eabi-gcc --version
