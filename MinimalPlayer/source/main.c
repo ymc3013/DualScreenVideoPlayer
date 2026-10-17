@@ -11,34 +11,40 @@ int main(void)
     consoleInit(GFX_TOP, NULL);
 
     printf("DualScreenVideoPlayer\n");
-    printf("---------------------\n\n");
+    printf("=====================\n\n");
+
     printf("Initialisation...\n");
 
     bool video_found = Video_init("sdmc:/Movies/test.avi");
+
     Audio_init();
 
     printf("\n");
 
     if (video_found)
     {
-        printf("Fichier video trouve !\n");
-        printf("SD:/Movies/test.avi\n\n");
-        printf("La lecture sera ajoutee\n");
-        printf("dans une prochaine etape.\n");
+        printf("Video trouve !\n");
+        printf("SD:/Movies/test.avi\n");
+        printf("\n");
+        printf("La lecture n'est pas encore\n");
+        printf("implementee.\n");
     }
     else
     {
-        printf("ERREUR : video introuvable.\n");
-        printf("Verifie le dossier Movies.\n");
+        printf("Video introuvable.\n\n");
+        printf("Verifie que le fichier existe :\n");
+        printf("SD:/Movies/test.avi\n");
     }
 
-    printf("\nSTART pour quitter.");
+    printf("\nSTART : quitter");
 
     while (aptMainLoop())
     {
         hidScanInput();
 
-        if (hidKeysDown() & KEY_START)
+        u32 keys = hidKeysDown();
+
+        if (keys & KEY_START)
             break;
 
         gspWaitForVBlank();
@@ -46,6 +52,7 @@ int main(void)
 
     Audio_exit();
     Video_exit();
+
     gfxExit();
 
     return 0;
