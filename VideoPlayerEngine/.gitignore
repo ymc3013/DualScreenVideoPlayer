@@ -1,0 +1,8 @@
+/build
+/.vscode
+*.3dsx
+*.cia
+*.elf
+*.smdh
+!/updater/*.3dsx
+!/updater/*.cia
